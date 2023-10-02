@@ -1,0 +1,8 @@
+C:\Users\balca\Documents\Programiranje\C\Tetris\Tetris\bin\Debug\Tetris.exe.config
+C:\Users\balca\Documents\Programiranje\C\Tetris\Tetris\bin\Debug\Tetris.exe
+C:\Users\balca\Documents\Programiranje\C\Tetris\Tetris\bin\Debug\Tetris.pdb
+C:\Users\balca\Documents\Programiranje\C\Tetris\Tetris\obj\Debug\Tetris.csproj.AssemblyReference.cache
+C:\Users\balca\Documents\Programiranje\C\Tetris\Tetris\obj\Debug\Tetris.csproj.SuggestedBindingRedirects.cache
+C:\Users\balca\Documents\Programiranje\C\Tetris\Tetris\obj\Debug\Tetris.csproj.CoreCompileInputs.cache
+C:\Users\balca\Documents\Programiranje\C\Tetris\Tetris\obj\Debug\Tetris.exe
+C:\Users\balca\Documents\Programiranje\C\Tetris\Tetris\obj\Debug\Tetris.pdb
