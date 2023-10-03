@@ -6,3 +6,10 @@ C:\Users\balca\Documents\Programiranje\C\Tetris\Tetris\obj\Debug\Tetris.csproj.S
 C:\Users\balca\Documents\Programiranje\C\Tetris\Tetris\obj\Debug\Tetris.csproj.CoreCompileInputs.cache
 C:\Users\balca\Documents\Programiranje\C\Tetris\Tetris\obj\Debug\Tetris.exe
 C:\Users\balca\Documents\Programiranje\C\Tetris\Tetris\obj\Debug\Tetris.pdb
+C:\Users\Ucenik\Documents\Milan\Tetris\Tetris\obj\Debug\Tetris.csproj.AssemblyReference.cache
+C:\Users\Ucenik\Documents\Milan\Tetris\Tetris\obj\Debug\Tetris.csproj.CoreCompileInputs.cache
+C:\Users\Ucenik\Documents\Milan\Tetris\Tetris\obj\Debug\Tetris.exe
+C:\Users\Ucenik\Documents\Milan\Tetris\Tetris\obj\Debug\Tetris.pdb
+C:\Users\Ucenik\Documents\Milan\Tetris\Tetris\bin\Debug\Tetris.exe.config
+C:\Users\Ucenik\Documents\Milan\Tetris\Tetris\bin\Debug\Tetris.exe
+C:\Users\Ucenik\Documents\Milan\Tetris\Tetris\bin\Debug\Tetris.pdb

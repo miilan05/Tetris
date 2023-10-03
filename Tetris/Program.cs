@@ -6,38 +6,118 @@ using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using static System.Console;
+using static System.Net.Mime.MediaTypeNames;
 
 namespace Tetris
 {
     internal class Program
     {
-        [DllImport("kernel32.dll", ExactSpelling = true)]
-        private static extern IntPtr GetConsoleWindow();
-        private static IntPtr ThisConsole = GetConsoleWindow();
-        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-        private const int HIDE = 0;
-        private const int MAXIMIZE = 3;
-        private const int MINIMIZE = 6;
-        private const int RESTORE = 9;
         private static int WIDTH = 15;
-        private static int HEIGHT = 30;
+        private static int HEIGHT = 26;
+        private static bool[,] MATRIX = new bool[HEIGHT + 4, WIDTH];
+        private static bool[,] IShape = new bool[1, 4] { { true, true, true, true } };
 
+        private static bool[,] OShape = new bool[2, 2] { { true, true },
+                                                       { true, true } };
+
+        private static bool[,] ZShape = new bool[2, 3] { { false, true, true },
+                                                       { true, true, false} };
+
+        private static bool[,] LShape = new bool[2, 3] { { true, false, false },
+                                                       { true, true, true} };
         static void Main(string[] args)
         {
-            //SetWindowSize(32, 33);
-            ShowWindow(ThisConsole, MAXIMIZE);
-
-
+            fillArray();
+            addObject();
             Timer timer = new Timer(TickFunction, null, 0, 1000);
             Thread inputThread = new Thread(InputHandler);
             inputThread.Start();
+        }
+        static void fillArray()
+        {
+            for (int i = 0; i < HEIGHT + 4; i++)
+            {
+                for (int j = 0; j < WIDTH; j++)
+                {
+                    MATRIX[i, j] = false;
+                }
+            }
+        }
+
+        static void addObject()
+        {
+            for (int j = 0; j < 4; j++)
+            {
+                MATRIX[2, j] = IShape[0, j];
+            }
+        }
+
+        private static int[,] Transpose(int[,] matrix)
+        {
+            int rows = matrix.GetLength(0);
+            int cols = matrix.GetLength(1);
+
+            int[,] transposedMatrix = new int[cols, rows];
+
+            for (int i = 0; i < rows; i++)
+            {
+                for (int j = 0; j < cols; j++)
+                {
+                    transposedMatrix[j, i] = matrix[i, j];
+                }
+            }
+
+            return transposedMatrix;
         }
 
         static void TickFunction(object state)
         {
             SetCursorPosition(0, 0);
+            updateMatrix();
             printBoard();
+        }
+
+        static void updateMatrix()
+        {
+            for (int i = HEIGHT + 3; i > 1;  i--)
+            {
+                for (int j = WIDTH - 1; j > 0; j--)
+                {
+                    MATRIX[i, j] = MATRIX[i - 1, j];
+                    
+                }
+            }
+        }
+
+        static void printBoard()
+        {
+            printEdge();
+            printGame();
+            printEdge();
+
+        }
+
+        static void printEdge()
+        {
+            string s = "+" + string.Concat(System.Linq.Enumerable.Repeat("-", (int)WIDTH*2)) + "+";
+            Console.WriteLine(s);
+        }
+
+        static void printGame()
+        {
+            for (int i = 4; i < HEIGHT + 4; i++)
+            {
+                string s = "";
+                for (int j = 0; j < WIDTH; j++)
+                {
+                    s += ocupied(j, i) ? "[]" : "  ";
+                }
+                Console.Write($"|{s}|\n");
+            }
+        }
+
+        static bool ocupied(int x, int y) { 
+            return MATRIX[y, x];
         }
 
         static void InputHandler()
@@ -50,63 +130,25 @@ namespace Tetris
                 {
                     case ConsoleKey.UpArrow:
                         Console.WriteLine("Up Arrow Pressed");
-                        // Handle up arrow key press here
                         break;
 
                     case ConsoleKey.DownArrow:
                         Console.WriteLine("Down Arrow Pressed");
-                        // Handle down arrow key press here
                         break;
 
                     case ConsoleKey.LeftArrow:
                         Console.WriteLine("Left Arrow Pressed");
-                        // Handle left arrow key press here
                         break;
 
                     case ConsoleKey.RightArrow:
                         Console.WriteLine("Right Arrow Pressed");
-                        // Handle right arrow key press here
                         break;
 
                     case ConsoleKey.Escape:
-                        Console.WriteLine("ESC Key Pressed. Exiting...");
-                        Environment.Exit(0); // Exit the program
+                        Environment.Exit(0);
                         break;
                 }
             }
-        }
-
-        static void printBoard()
-        {
-            Console.Write("+");
-            for (int j = 0; j < HEIGHT; j++)
-            {
-                Console.Write("-");
-            }
-            Console.Write("+\n");
-
-            for (int i = 0; i < HEIGHT; i++)
-            {
-                Console.Write("|");
-                for (int j = 0; j < WIDTH; j++)
-                {
-                    // instead of this write [] if block is ocupied
-                    Console.Write("  ");
-                }
-                Console.Write("|\n");
-            }
-
-            Console.Write("+");
-            for (int j = 0; j < HEIGHT; j++)
-            {
-                Console.Write("-");
-            }
-            Console.Write("+\n");
-        }
-
-        class tile
-        {
-
         }
     }
 }
