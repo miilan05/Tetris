@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Linq;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading;
@@ -12,6 +14,15 @@ namespace Tetris
 {
     internal class Program
     {
+        [DllImport("kernel32.dll", ExactSpelling = true)]
+        private static extern IntPtr GetConsoleWindow();
+        private static IntPtr ThisConsole = GetConsoleWindow();
+        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
+        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+        private const int HIDE = 0;
+        private const int MAXIMIZE = 3;
+        private const int MINIMIZE = 6;
+        private const int RESTORE = 9;
         private static int WIDTH = 15;
         private static int HEIGHT = 26;
         private static bool[,] MATRIX = new bool[HEIGHT + 4, WIDTH];
@@ -25,8 +36,21 @@ namespace Tetris
 
         private static bool[,] LShape = new bool[2, 3] { { true, false, false },
                                                        { true, true, true} };
+        class position
+        {
+            public position(int x, int y)
+            {
+                this.x = x;
+                this.y = y;
+            }
+            public int x { get; set; }
+            public int y { get; set; }
+        }
+        private static List<position> currentObjectPositions = new List<position>();
+
         static void Main(string[] args)
         {
+            ShowWindow(ThisConsole, MAXIMIZE);
             fillArray();
             addObject();
             Timer timer = new Timer(TickFunction, null, 0, 1000);
@@ -50,6 +74,7 @@ namespace Tetris
             {
                 MATRIX[2, j] = IShape[0, j];
             }
+            currentObjectPositions = new List<position> {new position(0, 2), new position(1, 2) , new position(2, 2) , new position(3, 2) };
         }
 
         private static int[,] Transpose(int[,] matrix)
@@ -72,29 +97,40 @@ namespace Tetris
 
         static void TickFunction(object state)
         {
-            SetCursorPosition(0, 0);
             updateMatrix();
             printBoard();
         }
 
-        static void updateMatrix()
-        {
-            for (int i = HEIGHT + 3; i > 1;  i--)
+        static void updateMatrix() {
+            //if (currentObjectPositions.Where(k => MATRIX[k.y + 1, k.x] == true || k.y >= HEIGHT - 1).Count() > 0) currentObjectPositions.Clear();
+            currentObjectPositions.ForEach(pos =>
             {
-                for (int j = WIDTH - 1; j > 0; j--)
-                {
-                    MATRIX[i, j] = MATRIX[i - 1, j];
-                    
-                }
-            }
+                //MATRIX[pos.y, pos.x] = false;
+                //MATRIX[pos.y + 1, pos.x ] = true;
+                pos.y += 1;
+            });
         }
 
         static void printBoard()
         {
+            SetCursorPosition(0, 0);
             printEdge();
             printGame();
             printEdge();
+            printMatrix();
+        }
 
+        static void printMatrix()
+        {
+            for (int i = 0; i < HEIGHT; i++)
+            {
+                string s = "";
+                for (int j = 0; j < WIDTH; j++)
+                {
+                    s += ocupied(j, i) ? "x" : " ";
+                }
+                Console.WriteLine(s);
+            }
         }
 
         static void printEdge()
@@ -105,7 +141,7 @@ namespace Tetris
 
         static void printGame()
         {
-            for (int i = 4; i < HEIGHT + 4; i++)
+            for (int i = 4; i < HEIGHT; i++)
             {
                 string s = "";
                 for (int j = 0; j < WIDTH; j++)
@@ -117,7 +153,7 @@ namespace Tetris
         }
 
         static bool ocupied(int x, int y) { 
-            return MATRIX[y, x];
+            return currentObjectPositions.Where(pos => pos.x == x && pos.y == y).Count() > 0;
         }
 
         static void InputHandler()
@@ -137,11 +173,13 @@ namespace Tetris
                         break;
 
                     case ConsoleKey.LeftArrow:
-                        Console.WriteLine("Left Arrow Pressed");
+                        moveLeft();
+                        printBoard();
                         break;
 
                     case ConsoleKey.RightArrow:
-                        Console.WriteLine("Right Arrow Pressed");
+                        moveRight();
+                        printBoard();
                         break;
 
                     case ConsoleKey.Escape:
@@ -149,6 +187,15 @@ namespace Tetris
                         break;
                 }
             }
+        }
+
+        static void moveRight()
+        {
+            if (currentObjectPositions.Where(pos => pos.x >= WIDTH - 1).Count() == 0) currentObjectPositions.ForEach(pos => pos.x += 1);
+        }
+        static void moveLeft()
+        {
+            if (currentObjectPositions.Where(pos => pos.x == 0).Count() == 0) currentObjectPositions.ForEach(pos => pos.x -= 1);
         }
     }
 }
