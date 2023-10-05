@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Data;
 using System.Diagnostics;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
@@ -39,25 +41,18 @@ namespace Tetris
         private static bool[,] LShape = new bool[2, 3] { { true, false, false },
                                                        { true, true, true} };
         private static Timer timer;
-        private static List<bool[,]> objects = new List<bool[,]>();
-        class position
-        {
-            public position(int x, int y)
-            {
-                this.x = x;
-                this.y = y;
-            }
-            public int x { get; set; }
-            public int y { get; set; }
-        }
         private static List<position> currentObjectPositions = new List<position>();
-
+        private static int timerInterval = 250;
         static void Main(string[] args)
         {
-            ShowWindow(ThisConsole, MAXIMIZE);
+            //ShowWindow(ThisConsole, MAXIMIZE);
+            Console.SetWindowSize(WIDTH * 2 + 3, HEIGHT);
+            Console.SetBufferSize(WIDTH * 2 + 3, HEIGHT);
+            Console.CursorVisible = false;
+
             fillArray();
             addObject();
-            timer = new Timer(TickFunction, null, 0, 100);
+            timer = new Timer(TickFunction, null, 0, timerInterval);
             Thread inputThread = new Thread(InputHandler);
             inputThread.Start();
         }
@@ -74,19 +69,51 @@ namespace Tetris
 
         static void addObject()
         {
-            for (int j = 0; j < 4; j++)
+            bool[,] randomShape;
+            Random random = new Random();
+            // Generate a random number to select a shape
+            int shapeIndex = random.Next(4);
+            switch (shapeIndex)
             {
-                MATRIX[2, j] = IShape[0, j];
+                case 0:
+                    randomShape = IShape;
+                    break;
+                case 1:
+                    randomShape = OShape;
+                    break;
+                case 2:
+                    randomShape = ZShape;
+                    break;
+                case 3:
+                    randomShape = LShape;
+                    break;
+                default:
+                    throw new InvalidOperationException("Invalid shape index.");
             }
-            currentObjectPositions = new List<position> {new position(0, 2), new position(1, 2) , new position(2, 2) , new position(3, 2) };
+            randomShape = random.Next(2) == 0 ? Transpose(randomShape) : randomShape;
+            // Generate a random position within the top row
+            int startPosition = random.Next(0, WIDTH - randomShape.GetLength(1) + 1);
+
+            // Place the shape in the top row of the MATRIX array
+            for (int i = 0; i < randomShape.GetLength(0); i++)
+            {
+                for (int j = 0; j < randomShape.GetLength(1); j++)
+                {
+                    if (!randomShape[i, j]) continue;
+                    //MATRIX[i + 4, startPosition + j] = randomShape[i, j];
+                    currentObjectPositions.Add(new position(startPosition + j, i + 1));               
+                }
+            }
         }
 
-        private static int[,] Transpose(int[,] matrix)
+
+
+        private static bool[,] Transpose(bool[,] matrix)
         {
             int rows = matrix.GetLength(0);
             int cols = matrix.GetLength(1);
 
-            int[,] transposedMatrix = new int[cols, rows];
+            bool[,] transposedMatrix = new bool[cols, rows];
 
             for (int i = 0; i < rows; i++)
             {
@@ -119,6 +146,7 @@ namespace Tetris
             currentObjectPositions.Clear();
             checkForLine();
             addObject();
+            timer.Change(0, timerInterval);
         }
 
         static void checkForLine()
@@ -143,42 +171,29 @@ namespace Tetris
         static void printBoard()
         {
             SetCursorPosition(0, 0);
-            printEdge();
-            printGame();
-            printEdge();
-            //printMatrix();
-        }
+            StringBuilder sb = new StringBuilder();
 
-        static void printMatrix()
-        {
-            for (int i = 0; i < HEIGHT; i++)
-            {
-                string s = "";
-                for (int j = 0; j < WIDTH; j++)
-                {
-                    s += ocupied(j, i) ? "x" : " ";
-                }
-                Console.WriteLine(s);
-            }
-        }
+            sb.Append("+");
+            sb.Append(new string('-', WIDTH * 2));
+            sb.AppendLine("+");
 
-        static void printEdge()
-        {
-            string s = "+" + string.Concat(System.Linq.Enumerable.Repeat("-", (int)WIDTH*2)) + "+";
-            Console.WriteLine(s);
-        }
-
-        static void printGame()
-        {
             for (int i = 4; i < HEIGHT; i++)
             {
-                string s = "";
+                sb.Append("|");
+
                 for (int j = 0; j < WIDTH; j++)
                 {
-                    s += ocupied(j, i) ? "[]" : "  ";
+                    sb.Append(ocupied(j, i) ? "[]" : "  ");
                 }
-                Console.Write($"|{s}|\n");
+
+                sb.AppendLine("|");
             }
+
+            sb.Append("+");
+            sb.Append(new string('-', WIDTH * 2));
+            sb.AppendLine("+");
+            FastConsole.WriteLine(sb.ToString());
+            FastConsole.Flush();
         }
 
         static bool ocupied(int x, int y) { 
@@ -194,11 +209,12 @@ namespace Tetris
                 switch (keyInfo.Key)
                 {
                     case ConsoleKey.UpArrow:
-                        Console.WriteLine("Up Arrow Pressed");
+                        currentObjectPositions = RotateShape(currentObjectPositions);
+                        //currentObjectPositions = Transpose(currentObjectPositions)
                         break;
 
                     case ConsoleKey.DownArrow:
-                        Console.WriteLine("Down Arrow Pressed");
+                        moveDown();
                         break;
 
                     case ConsoleKey.LeftArrow:
@@ -217,14 +233,74 @@ namespace Tetris
                 }
             }
         }
+        static List<position> RotateShape(List<position> positions) {
+            // Find the center (pivot point) of the shape
+            int centerX = positions.Sum(p => p.x) / positions.Count;
+            int centerY = positions.Sum(p => p.y) / positions.Count;
+
+            // Rotate each block around the center by 90 degrees
+            List<position> rotatedPositions = new List<position>();
+            int bounds = 0;
+            foreach (position pos in positions)
+            {
+                int relativeX = pos.x - centerX;
+                int relativeY = pos.y - centerY;
+
+                // Rotate the block by 90 degrees
+                int rotatedX = -relativeY + centerX;
+                int rotatedY = relativeX + centerY;
+
+                rotatedPositions.Add(new position(rotatedX + 1, rotatedY));
+            }
+
+            return rotatedPositions;
+        }
+        static void moveDown() { timer.Change(0, timerInterval / 2); }
 
         static void moveRight()
         {
-            if (currentObjectPositions.Where(pos => pos.x >= WIDTH - 1).Count() == 0) currentObjectPositions.ForEach(pos => pos.x += 1);
+            if (currentObjectPositions.Where(pos => pos.x >= WIDTH - 1 || MATRIX[pos.y, pos.x + 1]).Count() == 0) currentObjectPositions.ForEach(pos => pos.x += 1);
         }
         static void moveLeft()
         {
-            if (currentObjectPositions.Where(pos => pos.x == 0).Count() == 0) currentObjectPositions.ForEach(pos => pos.x -= 1);
+            if (currentObjectPositions.Where(pos => pos.x == 0 || MATRIX[pos.y, pos.x - 1]).Count() == 0) currentObjectPositions.ForEach(pos => pos.x -= 1);
         }
     }
+    class position
+    {
+        public position(int x, int y)
+        {
+            this.x = x;
+            this.y = y;
+        }
+        public int x { get; set; }
+        public int y { get; set; }
+    }
+
+    public static class FastConsole
+    {
+        static readonly BufferedStream str;
+
+        static FastConsole()
+        {
+            Console.OutputEncoding = Encoding.Unicode;  // crucial
+
+            // avoid special "ShadowBuffer" for hard-coded size 0x14000 in 'BufferedStream' 
+            str = new BufferedStream(Console.OpenStandardOutput(), 0x15000);
+        }
+
+        public static void WriteLine(String s) => Write(s + "\r\n");
+
+        public static void Write(String s)
+        {
+            // avoid endless 'GetByteCount' dithering in 'Encoding.Unicode.GetBytes(s)'
+            var rgb = new byte[s.Length << 1];
+            Encoding.Unicode.GetBytes(s, 0, s.Length, rgb, 0);
+
+            lock (str)   // (optional, can omit if appropriate)
+                str.Write(rgb, 0, rgb.Length);
+        }
+
+        public static void Flush() { lock (str) str.Flush(); }
+    };
 }
