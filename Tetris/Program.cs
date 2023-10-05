@@ -1,9 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Data;
+using System.Diagnostics;
 using System.Linq;
 using System.Net;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -23,7 +25,7 @@ namespace Tetris
         private const int MAXIMIZE = 3;
         private const int MINIMIZE = 6;
         private const int RESTORE = 9;
-        private static int WIDTH = 15;
+        private static int WIDTH = 16;
         private static int HEIGHT = 26;
         private static bool[,] MATRIX = new bool[HEIGHT + 4, WIDTH];
         private static bool[,] IShape = new bool[1, 4] { { true, true, true, true } };
@@ -36,6 +38,8 @@ namespace Tetris
 
         private static bool[,] LShape = new bool[2, 3] { { true, false, false },
                                                        { true, true, true} };
+        private static Timer timer;
+        private static List<bool[,]> objects = new List<bool[,]>();
         class position
         {
             public position(int x, int y)
@@ -53,7 +57,7 @@ namespace Tetris
             ShowWindow(ThisConsole, MAXIMIZE);
             fillArray();
             addObject();
-            Timer timer = new Timer(TickFunction, null, 0, 1000);
+            timer = new Timer(TickFunction, null, 0, 100);
             Thread inputThread = new Thread(InputHandler);
             inputThread.Start();
         }
@@ -102,13 +106,38 @@ namespace Tetris
         }
 
         static void updateMatrix() {
-            //if (currentObjectPositions.Where(k => MATRIX[k.y + 1, k.x] == true || k.y >= HEIGHT - 1).Count() > 0) currentObjectPositions.Clear();
+            if (currentObjectPositions.Where(k =>  k.y >= HEIGHT - 1 || MATRIX[k.y + 1, k.x] == true).Count() > 0) handleCollision();
             currentObjectPositions.ForEach(pos =>
             {
-                //MATRIX[pos.y, pos.x] = false;
-                //MATRIX[pos.y + 1, pos.x ] = true;
                 pos.y += 1;
             });
+        }
+
+        static void handleCollision()
+        {
+            currentObjectPositions.ForEach(pos => MATRIX[pos.y, pos.x] = true);
+            currentObjectPositions.Clear();
+            checkForLine();
+            addObject();
+        }
+
+        static void checkForLine()
+        {
+            for (int i = 0; i <= HEIGHT; i++)
+            {
+                int counter = 0;
+                for (int j = 0; j < WIDTH; j++)
+                {
+                    counter += MATRIX[i, j] ? 1 : 0;
+                }
+                if (counter == WIDTH)
+                {
+                    for (var j = 0; j < WIDTH; j++)
+                    {
+                        MATRIX[i, j] = false;
+                    }
+                }
+            }
         }
 
         static void printBoard()
@@ -117,7 +146,7 @@ namespace Tetris
             printEdge();
             printGame();
             printEdge();
-            printMatrix();
+            //printMatrix();
         }
 
         static void printMatrix()
@@ -153,7 +182,7 @@ namespace Tetris
         }
 
         static bool ocupied(int x, int y) { 
-            return currentObjectPositions.Where(pos => pos.x == x && pos.y == y).Count() > 0;
+            return currentObjectPositions.Where(pos => pos.x == x && pos.y == y).Count() > 0 || MATRIX[y, x];
         }
 
         static void InputHandler()
