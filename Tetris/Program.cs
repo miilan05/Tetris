@@ -14,6 +14,9 @@ using System.Threading.Tasks;
 using static System.Console;
 using static System.Net.Mime.MediaTypeNames;
 
+// reuse the rotateShape and randomly rotate the shape before placing an new object, 
+// add remaning shapes, 
+// add function to move down the upper boards when line breaks 
 namespace Tetris
 {
     internal class Program
@@ -29,17 +32,24 @@ namespace Tetris
         private const int RESTORE = 9;
         private static int WIDTH = 16;
         private static int HEIGHT = 26;
+
         private static bool[,] MATRIX = new bool[HEIGHT + 4, WIDTH];
         private static bool[,] IShape = new bool[1, 4] { { true, true, true, true } };
 
-        private static bool[,] OShape = new bool[2, 2] { { true, true },
-                                                       { true, true } };
+        private static bool[,] OShape = new bool[2, 2] { { true, true }, { true, true } };
 
-        private static bool[,] ZShape = new bool[2, 3] { { false, true, true },
-                                                       { true, true, false} };
+        private static bool[,] ZShape = new bool[2, 3] { { false, true, true },{ true, true, false} };
 
-        private static bool[,] LShape = new bool[2, 3] { { true, false, false },
-                                                       { true, true, true} };
+        private static bool[,] LShape = new bool[2, 3] { { true, false, false }, { true, true, true} };
+
+        enum ShapeType
+        {
+            IShape,
+            OShape,
+            ZShape,
+            LShape
+        }
+
         private static Timer timer;
         private static List<position> currentObjectPositions = new List<position>();
         private static int timerInterval = 250;
@@ -50,21 +60,10 @@ namespace Tetris
             Console.SetBufferSize(WIDTH * 2 + 3, HEIGHT);
             Console.CursorVisible = false;
 
-            fillArray();
             addObject();
             timer = new Timer(TickFunction, null, 0, timerInterval);
             Thread inputThread = new Thread(InputHandler);
             inputThread.Start();
-        }
-        static void fillArray()
-        {
-            for (int i = 0; i < HEIGHT + 4; i++)
-            {
-                for (int j = 0; j < WIDTH; j++)
-                {
-                    MATRIX[i, j] = false;
-                }
-            }
         }
 
         static void addObject()
@@ -90,7 +89,6 @@ namespace Tetris
                 default:
                     throw new InvalidOperationException("Invalid shape index.");
             }
-            randomShape = random.Next(2) == 0 ? Transpose(randomShape) : randomShape;
             // Generate a random position within the top row
             int startPosition = random.Next(0, WIDTH - randomShape.GetLength(1) + 1);
 
@@ -106,38 +104,18 @@ namespace Tetris
             }
         }
 
-
-
-        private static bool[,] Transpose(bool[,] matrix)
-        {
-            int rows = matrix.GetLength(0);
-            int cols = matrix.GetLength(1);
-
-            bool[,] transposedMatrix = new bool[cols, rows];
-
-            for (int i = 0; i < rows; i++)
-            {
-                for (int j = 0; j < cols; j++)
-                {
-                    transposedMatrix[j, i] = matrix[i, j];
-                }
-            }
-
-            return transposedMatrix;
-        }
-
         static void TickFunction(object state)
         {
             updateMatrix();
             printBoard();
         }
 
-        static void updateMatrix() {
-            if (currentObjectPositions.Where(k =>  k.y >= HEIGHT - 1 || MATRIX[k.y + 1, k.x] == true).Count() > 0) handleCollision();
-            currentObjectPositions.ForEach(pos =>
-            {
-                pos.y += 1;
-            });
+        static void updateMatrix()
+        {
+            if (currentObjectPositions.Any(pos => pos.y >= HEIGHT - 1 || MATRIX[pos.y + 1, pos.x]))
+                handleCollision();
+
+            currentObjectPositions.ForEach(pos => pos.y += 1);
         }
 
         static void handleCollision()
@@ -153,12 +131,7 @@ namespace Tetris
         {
             for (int i = 0; i <= HEIGHT; i++)
             {
-                int counter = 0;
-                for (int j = 0; j < WIDTH; j++)
-                {
-                    counter += MATRIX[i, j] ? 1 : 0;
-                }
-                if (counter == WIDTH)
+                if (Enumerable.Range(0, WIDTH).All(j => MATRIX[i, j]))
                 {
                     for (var j = 0; j < WIDTH; j++)
                     {
@@ -183,7 +156,7 @@ namespace Tetris
 
                 for (int j = 0; j < WIDTH; j++)
                 {
-                    sb.Append(ocupied(j, i) ? "[]" : "  ");
+                    sb.Append(occupied(j, i) ? "[]" : "  ");
                 }
 
                 sb.AppendLine("|");
@@ -195,9 +168,9 @@ namespace Tetris
             FastConsole.WriteLine(sb.ToString());
             FastConsole.Flush();
         }
-
-        static bool ocupied(int x, int y) { 
-            return currentObjectPositions.Where(pos => pos.x == x && pos.y == y).Count() > 0 || MATRIX[y, x];
+        static bool occupied(int x, int y)
+        {
+            return currentObjectPositions.Any(pos => pos.x == x && pos.y == y) || MATRIX[y, x];
         }
 
         static void InputHandler()
@@ -218,12 +191,12 @@ namespace Tetris
                         break;
 
                     case ConsoleKey.LeftArrow:
-                        moveLeft();
+                        moveXAxis(-1);
                         printBoard();
                         break;
 
                     case ConsoleKey.RightArrow:
-                        moveRight();
+                        moveXAxis(1);
                         printBoard();
                         break;
 
@@ -240,7 +213,6 @@ namespace Tetris
 
             // Rotate each block around the center by 90 degrees
             List<position> rotatedPositions = new List<position>();
-            int bounds = 0;
             foreach (position pos in positions)
             {
                 int relativeX = pos.x - centerX;
@@ -257,13 +229,10 @@ namespace Tetris
         }
         static void moveDown() { timer.Change(0, timerInterval / 2); }
 
-        static void moveRight()
+        static void moveXAxis(int n)
         {
-            if (currentObjectPositions.Where(pos => pos.x >= WIDTH - 1 || MATRIX[pos.y, pos.x + 1]).Count() == 0) currentObjectPositions.ForEach(pos => pos.x += 1);
-        }
-        static void moveLeft()
-        {
-            if (currentObjectPositions.Where(pos => pos.x == 0 || MATRIX[pos.y, pos.x - 1]).Count() == 0) currentObjectPositions.ForEach(pos => pos.x -= 1);
+            if (currentObjectPositions.All(pos => pos.x + n >= 0 && pos.x + n <= WIDTH - 1 && !MATRIX[pos.y, pos.x + n])) 
+                currentObjectPositions.ForEach(pos => pos.x += n);
         }
     }
     class position
