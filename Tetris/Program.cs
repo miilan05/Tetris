@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Net;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Text;
@@ -34,6 +35,7 @@ namespace Tetris
         private static int HEIGHT = 26;
 
         private static bool[,] MATRIX = new bool[HEIGHT + 4, WIDTH];
+
         private static bool[,] IShape = new bool[1, 4] { { true, true, true, true } };
 
         private static bool[,] OShape = new bool[2, 2] { { true, true }, { true, true } };
@@ -41,24 +43,24 @@ namespace Tetris
         private static bool[,] ZShape = new bool[2, 3] { { false, true, true },{ true, true, false} };
 
         private static bool[,] LShape = new bool[2, 3] { { true, false, false }, { true, true, true} };
+        private static bool[,] TShape = new bool[2, 3] { { false, true, false }, { true, true, true} };
 
-        enum ShapeType
-        {
-            IShape,
-            OShape,
-            ZShape,
-            LShape
-        }
+        private static List<bool[,]> ShapeTypes = new List<bool[,]>() { IShape, OShape, ZShape, LShape, TShape };
 
         private static Timer timer;
         private static List<position> currentObjectPositions = new List<position>();
-        private static int timerInterval = 250;
+        private static int timerInterval = 500;
         static void Main(string[] args)
         {
             //ShowWindow(ThisConsole, MAXIMIZE);
             Console.SetWindowSize(WIDTH * 2 + 3, HEIGHT);
             Console.SetBufferSize(WIDTH * 2 + 3, HEIGHT);
             Console.CursorVisible = false;
+
+            for (int i = 0; i < WIDTH - 1; i++)
+            {
+                MATRIX[HEIGHT - 1, i] = true;
+            }
 
             addObject();
             timer = new Timer(TickFunction, null, 0, timerInterval);
@@ -70,36 +72,14 @@ namespace Tetris
         {
             bool[,] randomShape;
             Random random = new Random();
-            // Generate a random number to select a shape
-            int shapeIndex = random.Next(4);
-            switch (shapeIndex)
-            {
-                case 0:
-                    randomShape = IShape;
-                    break;
-                case 1:
-                    randomShape = OShape;
-                    break;
-                case 2:
-                    randomShape = ZShape;
-                    break;
-                case 3:
-                    randomShape = LShape;
-                    break;
-                default:
-                    throw new InvalidOperationException("Invalid shape index.");
-            }
-            // Generate a random position within the top row
-            int startPosition = random.Next(0, WIDTH - randomShape.GetLength(1) + 1);
+            randomShape = ShapeTypes[random.Next(ShapeTypes.Count)];
 
-            // Place the shape in the top row of the MATRIX array
             for (int i = 0; i < randomShape.GetLength(0); i++)
             {
                 for (int j = 0; j < randomShape.GetLength(1); j++)
                 {
                     if (!randomShape[i, j]) continue;
-                    //MATRIX[i + 4, startPosition + j] = randomShape[i, j];
-                    currentObjectPositions.Add(new position(startPosition + j, i + 1));               
+                    currentObjectPositions.Add(new position(WIDTH/2 + j, i + 1));               
                 }
             }
         }
@@ -122,28 +102,46 @@ namespace Tetris
         {
             currentObjectPositions.ForEach(pos => MATRIX[pos.y, pos.x] = true);
             currentObjectPositions.Clear();
-            checkForLine();
+            moveBoard(checkForLine());
             addObject();
             timer.Change(0, timerInterval);
         }
 
-        static void checkForLine()
+        static List<int> checkForLine()
         {
+            List<int> Lines = new List<int>();
             for (int i = 0; i <= HEIGHT; i++)
             {
                 if (Enumerable.Range(0, WIDTH).All(j => MATRIX[i, j]))
                 {
+                    Lines.Add(i);
                     for (var j = 0; j < WIDTH; j++)
                     {
                         MATRIX[i, j] = false;
                     }
                 }
             }
+            return Lines;
+        }
+
+        static void moveBoard(List<int> yAxis)
+        {
+            yAxis.ForEach(y =>
+            {
+                for (int i = y; i > 0; i--)
+                {
+                    for (var j = 0; j < WIDTH; j++)
+                    {
+                        MATRIX[i, j] = MATRIX[i - 1, j];
+                    }
+                }
+            });
         }
 
         static void printBoard()
         {
             SetCursorPosition(0, 0);
+
             StringBuilder sb = new StringBuilder();
 
             sb.Append("+");
@@ -165,6 +163,7 @@ namespace Tetris
             sb.Append("+");
             sb.Append(new string('-', WIDTH * 2));
             sb.AppendLine("+");
+
             FastConsole.WriteLine(sb.ToString());
             FastConsole.Flush();
         }
@@ -183,11 +182,11 @@ namespace Tetris
                 {
                     case ConsoleKey.UpArrow:
                         currentObjectPositions = RotateShape(currentObjectPositions);
-                        //currentObjectPositions = Transpose(currentObjectPositions)
+                        printBoard();
                         break;
 
                     case ConsoleKey.DownArrow:
-                        moveDown();
+                        TickFunction(null);
                         break;
 
                     case ConsoleKey.LeftArrow:
@@ -227,7 +226,6 @@ namespace Tetris
 
             return rotatedPositions;
         }
-        static void moveDown() { timer.Change(0, timerInterval / 2); }
 
         static void moveXAxis(int n)
         {
