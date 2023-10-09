@@ -1,132 +1,131 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Configuration;
-using System.Data;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Net;
-using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
-using System.Security.AccessControl;
 using System.Text;
 using System.Threading;
-using System.Threading.Tasks;
-using static System.Console;
-using static System.Net.Mime.MediaTypeNames;
 
-// reuse the rotateShape and randomly rotate the shape before placing an new object, 
-// add remaning shapes, 
-// add function to move down the upper boards when line breaks 
+// make functions more pure
+// CheckForLine has a bad name and should modify the MATRIX variable directly
+// MoveBoard should create the next board and assign it to the main board
+// updateMatrix shouldnt access currentObjectPositions directly and we should extract the collision check outside of it
+
 namespace Tetris
 {
     internal class Program
     {
-        [DllImport("kernel32.dll", ExactSpelling = true)]
-        private static extern IntPtr GetConsoleWindow();
-        private static IntPtr ThisConsole = GetConsoleWindow();
-        [DllImport("user32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-        private static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
-        private const int HIDE = 0;
-        private const int MAXIMIZE = 3;
-        private const int MINIMIZE = 6;
-        private const int RESTORE = 9;
-        private static int WIDTH = 16;
-        private static int HEIGHT = 26;
-
-        private static bool[,] MATRIX = new bool[HEIGHT + 4, WIDTH];
-
         private static bool[,] IShape = new bool[1, 4] { { true, true, true, true } };
-
         private static bool[,] OShape = new bool[2, 2] { { true, true }, { true, true } };
-
-        private static bool[,] ZShape = new bool[2, 3] { { false, true, true },{ true, true, false} };
-
-        private static bool[,] LShape = new bool[2, 3] { { true, false, false }, { true, true, true} };
-        private static bool[,] TShape = new bool[2, 3] { { false, true, false }, { true, true, true} };
-
+        private static bool[,] ZShape = new bool[2, 3] { { false, true, true }, { true, true, false } };
+        private static bool[,] LShape = new bool[2, 3] { { true, false, false }, { true, true, true } };
+        private static bool[,] TShape = new bool[2, 3] { { false, true, false }, { true, true, true } };
         private static List<bool[,]> ShapeTypes = new List<bool[,]>() { IShape, OShape, ZShape, LShape, TShape };
 
-        private static Timer timer;
-        private static List<position> currentObjectPositions = new List<position>();
+        private static int WIDTH = 16;
+        private static int HEIGHT = 26;
         private static int timerInterval = 500;
+        private static Timer timer;
+
+        private static volatile TickState tickState;
+        public class TickState
+        {
+            public bool[,] Matrix { get; set; }
+            public List<position> CurrentObjectPositions { get; set; }
+        }
+        public class position
+        {
+            public position(int x, int y)
+            {
+                this.x = x;
+                this.y = y;
+            }
+            public int x { get; set; }
+            public int y { get; set; }
+        }
+
         static void Main(string[] args)
         {
-            //ShowWindow(ThisConsole, MAXIMIZE);
             Console.SetWindowSize(WIDTH * 2 + 3, HEIGHT);
             Console.SetBufferSize(WIDTH * 2 + 3, HEIGHT);
             Console.CursorVisible = false;
 
-            for (int i = 0; i < WIDTH - 1; i++)
+            tickState = new TickState
             {
-                MATRIX[HEIGHT - 1, i] = true;
-            }
+                Matrix = new bool[HEIGHT + 4, WIDTH],
+                CurrentObjectPositions = getRandomObject(ShapeTypes)
+            };
 
-            addObject();
             timer = new Timer(TickFunction, null, 0, timerInterval);
             Thread inputThread = new Thread(InputHandler);
             inputThread.Start();
         }
 
-        static void addObject()
+        static void TickFunction(object state)
+        {
+            TickState tickState = Program.tickState;
+            bool[,] MATRIX = tickState.Matrix;
+            List<position> currentObjectPositions = tickState.CurrentObjectPositions;
+
+            UpdateMatrix(ref currentObjectPositions, MATRIX);
+            PrintBoard(MATRIX, currentObjectPositions);
+        }
+
+        static List<position> getRandomObject(List<bool[,]> ShapeTypes)
         {
             bool[,] randomShape;
             Random random = new Random();
             randomShape = ShapeTypes[random.Next(ShapeTypes.Count)];
+            List<position> objectPositions = new List<position>();
 
             for (int i = 0; i < randomShape.GetLength(0); i++)
             {
                 for (int j = 0; j < randomShape.GetLength(1); j++)
                 {
                     if (!randomShape[i, j]) continue;
-                    currentObjectPositions.Add(new position(WIDTH/2 + j, i + 1));               
+                    objectPositions.Add(new position(WIDTH / 2 + j, i + 1));
                 }
             }
+            return objectPositions;
         }
 
-        static void TickFunction(object state)
-        {
-            updateMatrix();
-            printBoard();
-        }
-
-        static void updateMatrix()
+        static void UpdateMatrix(ref List<position> currentObjectPositions, bool[,] MATRIX)
         {
             if (currentObjectPositions.Any(pos => pos.y >= HEIGHT - 1 || MATRIX[pos.y + 1, pos.x]))
-                handleCollision();
+                HandleCollision(currentObjectPositions, MATRIX);
 
             currentObjectPositions.ForEach(pos => pos.y += 1);
         }
 
-        static void handleCollision()
+        static void HandleCollision(List<position> currentObjectPositions, bool[,] MATRIX)
         {
             currentObjectPositions.ForEach(pos => MATRIX[pos.y, pos.x] = true);
             currentObjectPositions.Clear();
-            moveBoard(checkForLine());
-            addObject();
+            List<int> linesToRemove = CheckForLine(MATRIX);
+            MoveBoard(MATRIX, linesToRemove);
+            currentObjectPositions.AddRange(getRandomObject(ShapeTypes));
             timer.Change(0, timerInterval);
         }
 
-        static List<int> checkForLine()
+        static List<int> CheckForLine(bool[,] MATRIX)
         {
-            List<int> Lines = new List<int>();
+            List<int> linesToRemove = new List<int>();
             for (int i = 0; i <= HEIGHT; i++)
             {
                 if (Enumerable.Range(0, WIDTH).All(j => MATRIX[i, j]))
                 {
-                    Lines.Add(i);
+                    linesToRemove.Add(i);
                     for (var j = 0; j < WIDTH; j++)
                     {
                         MATRIX[i, j] = false;
                     }
                 }
             }
-            return Lines;
+            return linesToRemove;
         }
 
-        static void moveBoard(List<int> yAxis)
+        static void MoveBoard(bool[,] MATRIX, List<int> linesToRemove)
         {
-            yAxis.ForEach(y =>
+            linesToRemove.ForEach(y =>
             {
                 for (int i = y; i > 0; i--)
                 {
@@ -138,9 +137,9 @@ namespace Tetris
             });
         }
 
-        static void printBoard()
+        static void PrintBoard(bool[,] MATRIX, List<position> currentObjectPositions)
         {
-            SetCursorPosition(0, 0);
+            Console.SetCursorPosition(0, 0);
 
             StringBuilder sb = new StringBuilder();
 
@@ -154,7 +153,7 @@ namespace Tetris
 
                 for (int j = 0; j < WIDTH; j++)
                 {
-                    sb.Append(occupied(j, i) ? "[]" : "  ");
+                    sb.Append(Occupied(MATRIX, currentObjectPositions, j, i) ? "[]" : "  ");
                 }
 
                 sb.AppendLine("|");
@@ -167,36 +166,39 @@ namespace Tetris
             FastConsole.WriteLine(sb.ToString());
             FastConsole.Flush();
         }
-        static bool occupied(int x, int y)
+
+        static bool Occupied(bool[,] MATRIX, List<position> currentObjectPositions, int x, int y)
         {
             return currentObjectPositions.Any(pos => pos.x == x && pos.y == y) || MATRIX[y, x];
         }
 
-        static void InputHandler()
+        static void InputHandler( )
         {
+            TickState tickState = Program.tickState;
+
             while (true)
             {
-                ConsoleKeyInfo keyInfo = Console.ReadKey(true); // Read a key without displaying it
+                ConsoleKeyInfo keyInfo = Console.ReadKey(true);
 
                 switch (keyInfo.Key)
                 {
                     case ConsoleKey.UpArrow:
-                        currentObjectPositions = RotateShape(currentObjectPositions);
-                        printBoard();
+                        tickState.CurrentObjectPositions = RotateShape(tickState.CurrentObjectPositions);
+                        PrintBoard(tickState.Matrix, tickState.CurrentObjectPositions);
                         break;
 
                     case ConsoleKey.DownArrow:
-                        TickFunction(null);
+                        TickFunction(tickState);
                         break;
 
                     case ConsoleKey.LeftArrow:
-                        moveXAxis(-1);
-                        printBoard();
+                        tickState.CurrentObjectPositions = moveXAxis(tickState.Matrix, tickState.CurrentObjectPositions, - 1);
+                        PrintBoard(tickState.Matrix, tickState.CurrentObjectPositions);
                         break;
 
                     case ConsoleKey.RightArrow:
-                        moveXAxis(1);
-                        printBoard();
+                        tickState.CurrentObjectPositions = moveXAxis(tickState.Matrix, tickState.CurrentObjectPositions, 1);
+                        PrintBoard(tickState.Matrix, tickState.CurrentObjectPositions);
                         break;
 
                     case ConsoleKey.Escape:
@@ -205,7 +207,15 @@ namespace Tetris
                 }
             }
         }
-        static List<position> RotateShape(List<position> positions) {
+        static List<position> moveXAxis(bool[,] MATRIX, List<position> positions, int n)
+        {
+            if (positions.All(pos => pos.x + n >= 0 && pos.x + n <= WIDTH - 1 && !MATRIX[pos.y, pos.x + n]))
+                positions.ForEach(pos => pos.x += n);
+            return positions;
+        }
+
+        static List<position> RotateShape(List<position> positions)
+        {
             // Find the center (pivot point) of the shape
             int centerX = positions.Sum(p => p.x) / positions.Count;
             int centerY = positions.Sum(p => p.y) / positions.Count;
@@ -226,22 +236,6 @@ namespace Tetris
 
             return rotatedPositions;
         }
-
-        static void moveXAxis(int n)
-        {
-            if (currentObjectPositions.All(pos => pos.x + n >= 0 && pos.x + n <= WIDTH - 1 && !MATRIX[pos.y, pos.x + n])) 
-                currentObjectPositions.ForEach(pos => pos.x += n);
-        }
-    }
-    class position
-    {
-        public position(int x, int y)
-        {
-            this.x = x;
-            this.y = y;
-        }
-        public int x { get; set; }
-        public int y { get; set; }
     }
 
     public static class FastConsole
